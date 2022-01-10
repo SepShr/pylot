@@ -120,3 +120,6 @@ flags.DEFINE_list('tracking_metrics', [
     'num_misses', 'num_switches', 'num_false_positives', 'mota', 'motp',
     'mostly_tracked', 'mostly_lost', 'partially_tracked', 'idf1', 'num_objects'
 ], 'Tracking evaluation metrics')
+
+# Lane_Highjacker flags.
+flags.DEFINE_string('mlco_list_path', None, 'The path to the pickled mlco_list')

@@ -235,6 +235,20 @@ def add_lanenet_detection(bgr_camera_stream, name='lanenet_lane_detection'):
                                             FLAGS)
     return lane_detection_stream
 
+def add_lane_detection_highjacker(
+        bgr_camera_stream, mlco_list, name='highjacker_lane_detection'):
+    """
+    The function creates a `lane_detection_stream` for pylot using
+    the `LaneDetectionHighjackerOperator` operator.
+    """
+    op_config = erdos.OperatorConfig(name=name,
+                                     log_file_name=FLAGS.log_file_name,
+                                     csv_log_file_name=FLAGS.csv_log_file_name,
+                                     profile_file_name=FLAGS.profile_file_name)
+    [lane_detection_stream] = erdos.connect(LaneDetectionHighjackerOperator,
+                                            op_config, [bgr_camera_stream],
+                                            FLAGS)
+    return lane_detection_stream
 
 def add_obstacle_tracking(obstacles_stream,
                           bgr_camera_stream,

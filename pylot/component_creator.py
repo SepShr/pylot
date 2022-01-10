@@ -294,6 +294,11 @@ def add_lane_detection(center_camera_stream,
             lane_detection_stream = \
                 pylot.operator_creator.add_lanenet_detection(
                     center_camera_stream)
+        elif FLAGS.lane_detection_type == 'highjacker':
+            logger.debug('Using Highjacker lane detector ...')
+            lane_detection_stream =\
+                pylot.operator_creator.add_lane_detection_highjacker(
+                    center_camera_stream)
         else:
             raise ValueError('Unexpected lane detection type {}'.format(
                 FLAGS.lane_detection_type))
