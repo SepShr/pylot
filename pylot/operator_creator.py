@@ -236,11 +236,13 @@ def add_lanenet_detection(bgr_camera_stream, name='lanenet_lane_detection'):
     return lane_detection_stream
 
 def add_lane_detection_highjacker(
-        bgr_camera_stream, mlco_list, name='highjacker_lane_detection'):
+        bgr_camera_stream, name='highjacker_lane_detection'):
     """
     The function creates a `lane_detection_stream` for pylot using
     the `LaneDetectionHighjackerOperator` operator.
     """
+    from pylot.perception.detection.lane_detection_highjacker_operator import \
+        LaneDetectionHighjackerOperator
     op_config = erdos.OperatorConfig(name=name,
                                      log_file_name=FLAGS.log_file_name,
                                      csv_log_file_name=FLAGS.csv_log_file_name,
