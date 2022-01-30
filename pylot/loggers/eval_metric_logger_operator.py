@@ -46,6 +46,12 @@ class EvalMetricLoggerOperator(erdos.Operator):
 
         # Initialize a logger.
         self._flags = flags
+        self.log_file_name_ex = self._flags.log_fil_name+'_ex.log'
+        import os
+        if os.path.exists(self.log_file_name_ex):
+            os.remove(self.log_file_name_ex)
+
+
         self._logger = erdos.utils.setup_logging(self.config.name,
                                                  self.config.log_file_name)
         self._csv_logger = erdos.utils.setup_csv_logging(
@@ -74,7 +80,14 @@ class EvalMetricLoggerOperator(erdos.Operator):
         """
         self._csv_logger.info('{},{},collision,{},{:.4f}'.format(
             time_epoch_ms(), msg.timestamp.coordinates[0],
+            msg.split('.')[0], msg.intensity))
+        fhandler = open(self.log_file_name_ex, "a")
+        fhandler.write('{},{},collision,{},{:.4f}'.format(
+            time_epoch_ms(), msg.timestamp.coordinates[0],
             msg.collided_actor.split('.')[0], msg.intensity))
+        fhandler.write("\n")
+        fhandler.close()
+
 
     def on_lane_invasion_update(self, msg):
         """ Invoked upon receipt of a lane invasion update.
@@ -92,10 +105,21 @@ class EvalMetricLoggerOperator(erdos.Operator):
                     msg.lane_markings)):
             self._csv_logger.info('{},{},invasion,lane'.format(
                 time_epoch_ms(), sim_time))
+            fhandler = open(self.log_file_name_ex, "a")
+            fhandler.write('{},{},invasion,lane'.format(
+                time_epoch_ms(), sim_time))
+            fhandler.write("\n")
+            fhandler.close()
+
 
         if msg.lane_type == LaneType.SIDEWALK:
             self._csv_logger.info('{},{},invasion,sidewalk'.format(
                 time_epoch_ms(), sim_time))
+            fhandler = open(self.log_file_name_ex, "a")
+            fhandler.write('{},{},invasion,sidewalk'.format(
+                time_epoch_ms(), sim_time))
+            fhandler.write("\n")
+            fhandler.close()
 
     @staticmethod
     def check_illegal_lane_invasion(lane_marking):
@@ -132,6 +156,13 @@ class EvalMetricLoggerOperator(erdos.Operator):
         sim_time = msg.timestamp.coordinates[0]
         self._csv_logger.info('{},{},invasion,red_light'.format(
             time_epoch_ms(), sim_time))
+        fhandler = open(self.log_file_name_ex, "a")
+        fhandler.write('{},{},invasion,red_light'.format(
+            time_epoch_ms(), sim_time))
+        fhandler.write("\n")
+        fhandler.close()
+
+
 
     def on_imu_update(self, msg):
         """ Invoked upon receipt of an IMU sensor update.

@@ -12,6 +12,11 @@ from pylot.perception.detection.traffic_light import TrafficLight
 from pylot.perception.detection.utils import BoundingBox2D
 
 
+from pylot.simulation.carla_handler import carla_handle
+from carla import VehicleLightState
+
+cd = carla_handle()
+
 def check_simulator_version(simulator_version: str,
                             required_major: int = 0,
                             required_minor: int = 9,
@@ -19,8 +24,8 @@ def check_simulator_version(simulator_version: str,
     """Checks if the simulator meets the minimum version requirements."""
     ver_strs = simulator_version.split('.')
     if len(ver_strs) < 2 or len(ver_strs) > 3:
-        print('WARNING: Assuming that installed CARLA {} API is compatible '
-              'with CARLA 0.9.10 API'.format(simulator_version))
+        print('ERROR: CARLA version {} is not supported; assuming this is '
+              'version 0.9.10'.format(simulator_version))
         ver_strs = '0.9.10'.split('.')
     major = int(ver_strs[0])
     minor = int(ver_strs[1])
@@ -37,7 +42,7 @@ def check_simulator_version(simulator_version: str,
                 return True
 
 
-def get_world(host: str = "localhost", port: int = 2000, timeout: int = 10):
+def get_world(host: str = "localhost", port: int = 2000, timeout: int = 60):
     """Get a handle to the world running inside the simulation.
 
     Args:
@@ -57,8 +62,8 @@ def get_world(host: str = "localhost", port: int = 2000, timeout: int = 10):
         server_version = client.get_server_version()
         err_msg = 'Simulator client {} does not match server {}'.format(
             client_version, server_version)
-        assert client_version == server_version, err_msg
-        client.set_timeout(timeout)
+        # assert client_version == server_version, err_msg
+        client.set_timeout(60)
         world = client.get_world()
     except RuntimeError as r:
         raise Exception("Received an error while connecting to the "
@@ -93,15 +98,12 @@ def map_from_opendrive(opendrive: str, log_file_name: str = None):
     return HDMap(Map('map', opendrive), log_file_name)
 
 
-def set_weather(world, weather: str):
+def set_weather(world, weather: str,night_time):
     """Sets the simulation weather."""
-    from carla import WeatherParameters
-    names = [
-        name for name in dir(WeatherParameters) if re.match('[A-Z].+', name)
-    ]
-    weathers = {x: getattr(WeatherParameters, x) for x in names}
-    world.set_weather(weathers[weather])
+    weathers = cd.set_weather (world, weather,night_time)
     return weathers
+
+
 
 
 def set_simulation_mode(world, flags):
@@ -164,33 +166,47 @@ def reset_world(world):
         else:
             actor.destroy()
 
+def turn_lights_green():
+    cd.turn_off_ai()
 
-def spawn_actors(client, world, traffic_manager_port: int,
-                 simulator_version: str, ego_spawn_point_index: int,
-                 auto_pilot: bool, num_people: int, num_vehicles: int, logger):
-    vehicle_ids = spawn_vehicles(client, world, traffic_manager_port,
-                                 num_vehicles, logger)
-    ego_vehicle = spawn_ego_vehicle(world, traffic_manager_port,
-                                    ego_spawn_point_index, auto_pilot)
+def turn_lights_red():
+    cd.turn_lights_red()
+def turn_lights_yellow():
+    cd.turn_lights_yellow()
+def spawn_actors(client, world, simulator_version: str,
+                 ego_spawn_point_index: int, auto_pilot: bool, num_people: int,
+                 num_vehicles: int, logger,flags):
+    # vehicle_ids = spawn_vehicles(client, world, num_vehicles, logger)
+
+    vehicle_ids,vehicle_infront = cd.spawn_vehicles(client, world, num_vehicles, logger,flags)
+    ego_vehicle = spawn_ego_vehicle(world, ego_spawn_point_index, auto_pilot)
+    if flags.night_time==1:
+        ego_vehicle.set_light_state(VehicleLightState.HighBeam)
     people = []
+
+    cd.handle_traffic_lights()
 
     if check_simulator_version(simulator_version,
                                required_minor=9,
                                required_patch=6):
         # People do not move in versions older than 0.9.6.
+
+
         (people, people_control_ids) = spawn_people(client, world, num_people,
                                                     logger)
         people_actors = world.get_actors(people_control_ids)
-        for i, ped_control_id in enumerate(people_control_ids):
-            # Start person.
-            people_actors[i].start()
-            people_actors[i].go_to_location(
-                world.get_random_location_from_navigation())
-    return ego_vehicle, vehicle_ids, people
+
+        cd.handle_pedestrian(world,people,people_control_ids,client)
+
+        # for i, ped_control_id in enumerate(people_control_ids):
+        #     # Start person.
+        #     people_actors[i].start()
+        #     people_actors[i].go_to_location(
+        #         world.get_random_location_from_navigation())
+    return ego_vehicle, vehicle_ids, people, vehicle_infront
 
 
 def spawn_ego_vehicle(world,
-                      traffic_manager_port: int,
                       spawn_point_index: int,
                       auto_pilot: bool,
                       blueprint: str = 'vehicle.lincoln.mkz2017'):
@@ -207,9 +223,11 @@ def spawn_ego_vehicle(world,
                 'Town does not have sufficient spawn points.'
             start_pose = spawn_points[spawn_point_index]
 
-        ego_vehicle = world.try_spawn_actor(v_blueprint, start_pose)
+            transform =cd.get_starting_position(world,start_pose)
+            ego_vehicle = world.try_spawn_actor(v_blueprint, transform)
+            #ego_vehicle = world.try_spawn_actor(v_blueprint, start_pose)
     if auto_pilot:
-        ego_vehicle.set_autopilot(True, traffic_manager_port)
+        ego_vehicle.set_autopilot(True)
     return ego_vehicle
 
 
@@ -242,8 +260,11 @@ def spawn_people(client, world, num_people: int, logger):
             logger.error('Could not find unique person spawn point')
     # Spawn the people.
     batch = []
+    bp_num=0
     for spawn_point in spawn_points:
-        p_blueprint = random.choice(p_blueprints)
+        # p_blueprint = random.choice(p_blueprints)
+        p_blueprint = p_blueprints[bp_num]
+        bp_num=bp_num+1
         if p_blueprint.has_attribute('is_invincible'):
             p_blueprint.set_attribute('is_invincible', 'false')
         batch.append(command.SpawnActor(p_blueprint, spawn_point))
@@ -255,26 +276,25 @@ def spawn_people(client, world, num_people: int, logger):
                 response.error))
         else:
             ped_ids.append(response.actor_id)
-    # Spawn the person controllers
-    ped_controller_bp = world.get_blueprint_library().find(
-        'controller.ai.walker')
-    batch = []
-    for ped_id in ped_ids:
-        batch.append(command.SpawnActor(ped_controller_bp, Transform(),
-                                        ped_id))
+    # # Spawn the person controllers
+    # ped_controller_bp = world.get_blueprint_library().find(
+    #     'controller.ai.walker')
+    # batch = []
+    # for ped_id in ped_ids:
+    #     batch.append(command.SpawnActor(ped_controller_bp, Transform(),
+    #                                     ped_id))
     ped_control_ids = []
-    for response in client.apply_batch_sync(batch, True):
-        if response.error:
-            logger.info('Error while spawning a person controller: {}'.format(
-                response.error))
-        else:
-            ped_control_ids.append(response.actor_id)
+    # for response in client.apply_batch_sync(batch, True):
+    #     if response.error:
+    #         logger.info('Error while spawning a person controller: {}'.format(
+    #             response.error))
+    #     else:
+    #         ped_control_ids.append(response.actor_id)
 
     return (ped_ids, ped_control_ids)
 
 
-def spawn_vehicles(client, world, traffic_manager_port: int, num_vehicles: int,
-                   logger):
+def spawn_vehicles(client, world, num_vehicles: int, logger):
     """ Spawns vehicles at random locations inside the world.
 
     Args:
@@ -312,8 +332,7 @@ def spawn_vehicles(client, world, traffic_manager_port: int, num_vehicles: int,
 
         batch.append(
             command.SpawnActor(blueprint, transform).then(
-                command.SetAutopilot(command.FutureActor, True,
-                                     traffic_manager_port)))
+                command.SetAutopilot(command.FutureActor, True)))
 
     # Apply the batch and retrieve the identifiers.
     vehicle_ids = []

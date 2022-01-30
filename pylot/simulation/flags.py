@@ -61,6 +61,10 @@ flags.DEFINE_integer(
     'Index of spawn point where to place ego vehicle. -1 to randomly assign.')
 flags.DEFINE_integer('simulator_vehicle_mass', None,
                      'Modifies the mass of the ego-vehicle')
+
+
+
+
 flags.DEFINE_float('simulator_vehicle_moi', None,
                    'Modifies the moment of inertia of the ego-vehicle')
 
@@ -96,6 +100,35 @@ flags.DEFINE_float('gnss_bias_lat', 0.0,
                    'Sets the bias on the latitude of the GNSS sensor.')
 flags.DEFINE_float('gnss_bias_lon', 0.0,
                    'Sets the bias on the longitude of the GNSS sensor.')
+####### newly added
+flags.DEFINE_integer('vehicle_in_front', 0,
+                     'is there vehicle infront of ego Vehicle')
+flags.DEFINE_integer('vehicle_in_adjcent_lane', 0,
+                     'is there vehicle in adjacent lane of ego Vehicle')
+flags.DEFINE_integer('total_distance', 50,
+                     'total distance vehicle should cover')
+flags.DEFINE_float('buffer_distance', 0,
+                     'total distance vehicle should cover')
+flags.DEFINE_integer('vehicle_in_opposite_lane', 0,
+                     'is there vehicle in adjacent lane of ego Vehicle')
+
+flags.DEFINE_string('log_fil_name', 'test_file.log', 'log_file_name')
+flags.DEFINE_integer('vehicle_in_front_spawn_point', 0,
+                     'vehicle_infront_spawn_point')
+flags.DEFINE_integer('vehicle_in_front_two_wheeled', 0,
+                     'vehicle_in_front_two_wheeled')
+flags.DEFINE_integer('vehicle_in_adjacent_two_wheeled', 0,
+                     'vehicle_in_adjacent_two_wheeled')
+flags.DEFINE_integer('vehicle_in_opposite_two_wheeled', 0,
+                     'vehicle_in_opposite_two_wheeled')
+flags.DEFINE_integer('vehicle_in_opposite_spawn_point', 0,
+                     'vehicle_in_opposite_spawn_point')
+
+flags.DEFINE_integer('vehicle_in_adjacent_spawn_point', 0,
+                     'vehicle_in_adjacent_spawn_point')
+flags.DEFINE_integer('night_time', 0,
+                     'night_time')
+
 
 
 def sensor_frequency_validator(flags_dict):

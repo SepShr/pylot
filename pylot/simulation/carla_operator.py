@@ -4,12 +4,12 @@ import random
 import threading
 import time
 from functools import total_ordering
-
-from carla import Location, VehicleControl, command
+import sys
+from carla import Location, VehicleControl, command,Transform
 
 import erdos
 from erdos import ReadStream, Timestamp, WriteStream
-
+from pylot.simulation.fitness_value_extractor import FitnessExtractor
 import pylot.simulation.utils
 import pylot.utils
 from pylot.control.messages import ControlMessage
@@ -33,6 +33,7 @@ class CarlaOperator(erdos.Operator):
         _world: A handle to the world running inside the simulation.
         _vehicles: A list of identifiers of the vehicles inside the simulation.
     """
+    counter = 0
     def __init__(
             self, control_stream: ReadStream,
             release_sensor_stream: ReadStream,
@@ -62,6 +63,9 @@ class CarlaOperator(erdos.Operator):
         self.vehicle_id_stream = vehicle_id_stream
         self.open_drive_stream = open_drive_stream
         self.global_trajectory_stream = global_trajectory_stream
+        self.fitness_value=FitnessExtractor()
+        self.c = 0
+        self.vehicle_infront=0
 
         self._flags = flags
         self._logger = erdos.utils.setup_logging(self.config.name,
@@ -109,14 +113,12 @@ class CarlaOperator(erdos.Operator):
         else:
             # Spawn ego vehicle, people and vehicles.
             (self._ego_vehicle, self._vehicle_ids,
-             self._people) = pylot.simulation.utils.spawn_actors(
-                 self._client, self._world,
-                 self._flags.carla_traffic_manager_port,
-                 self._simulator_version,
+             self._people,self.vehicle_infront) = pylot.simulation.utils.spawn_actors(
+                 self._client, self._world, self._simulator_version,
                  self._flags.simulator_spawn_point_index,
                  self._flags.control == 'simulator_auto_pilot',
                  self._flags.simulator_num_people,
-                 self._flags.simulator_num_vehicles, self._logger)
+                 self._flags.simulator_num_vehicles, self._logger,flags)
 
         pylot.simulation.utils.set_vehicle_physics(
             self._ego_vehicle, self._flags.simulator_vehicle_moi,
@@ -169,6 +171,7 @@ class CarlaOperator(erdos.Operator):
         """
         self._logger.debug('@{}: received control message'.format(
             msg.timestamp))
+
         if self._flags.simulator_mode == 'pseudo-asynchronous':
             heapq.heappush(
                 self._tick_events,
@@ -178,6 +181,7 @@ class CarlaOperator(erdos.Operator):
             # data-flow has a new round of sensor inputs. Apply control
             # commands if they must be applied before the next sensor read.
             self._consume_next_event()
+
         else:
             # If auto pilot or manual mode is enabled then we do not apply the
             # control, but we still want to tick in this method to ensure that
@@ -326,7 +330,7 @@ class CarlaOperator(erdos.Operator):
         self._logger.info('Setting the weather to {}'.format(
             self._flags.simulator_weather))
         pylot.simulation.utils.set_weather(self._world,
-                                           self._flags.simulator_weather)
+                                           self._flags.simulator_weather,self._flags.night_time)
 
     def _tick_simulator(self):
         if (self._flags.simulator_mode == 'asynchronous-fixed-time-step'
@@ -351,8 +355,25 @@ class CarlaOperator(erdos.Operator):
                                      brake=msg.brake,
                                      hand_brake=msg.hand_brake,
                                      reverse=msg.reverse)
+
         self._client.apply_batch_sync(
             [command.ApplyVehicleControl(self._ego_vehicle.id, vec_control)])
+
+
+        self.fitness_value.extract_from_world(self._ego_vehicle,self._world,self._flags, self.vehicle_infront)
+        self.counter  = self.counter+1
+        # if self.counter < 100:
+        #     pylot.simulation.utils.turn_lights_red()
+        # if self.counter > 100 and self.counter < 120:
+        #     pylot.simulation.utils.turn_lights_yellow()
+        # if self.counter > 100 and self.counter < 150: # 30 seconds
+        #     pylot.simulation.utils.turn_lights_green()
+        # if self.counter > 150: # 30 seconds
+        #     pylot.simulation.utils.turn_lights_yellow()
+        #
+        # if self.counter > 170:
+        #     self.counter =0
+
 
     def __send_hero_vehicle_data(self, stream: WriteStream,
                                  timestamp: Timestamp):
